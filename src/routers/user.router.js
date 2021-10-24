@@ -3,7 +3,8 @@ const {route} = require("./ticket.router")
 const router = express.Router();
 
 const {insertUser,getUserByEmail} = require("../models/user/User.model")
-const {hashPassword,comparePassword} = require ("../helpers/bcrypt.helper")
+const {hashPassword,comparePassword} = require ("../helpers/bcrypt.helper");
+const { createAccessJWT, createRefreshJWT } = require('../helpers/jwt.helper');
 router.all('/',(req,res,next)=> {
     // res.json({message: 'Return from user router'})
     next()
@@ -46,9 +47,14 @@ router.post('/login',async(req,res)=> {
         return res.json({status:'error',message: 'Invalid email or password'})
     }
     const result = await comparePassword (password,passFromDb);
+    if (!result){
+        return res.json({status:'error',message: 'Invalid email or password'})
+    }
+    const accessJWT = await createAccessJWT(user.email);
+    const refreshJWT = await createRefreshJWT(user.email);
     console.log(result);
 
-    res.json({status:'success',message: 'successfully logged in'})
+    res.json({status:'success',message: 'successfully logged in',accessJWT,refreshJWT})
 })
 
 module.exports = router;
