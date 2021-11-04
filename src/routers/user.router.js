@@ -2,14 +2,24 @@ const express = require ('express');
 const {route} = require("./ticket.router")
 const router = express.Router();
 
-const {insertUser,getUserByEmail} = require("../models/user/User.model")
+const {insertUser,getUserByEmail,getUserByID} = require("../models/user/User.model")
 const {hashPassword,comparePassword} = require ("../helpers/bcrypt.helper");
 const { createAccessJWT, createRefreshJWT } = require('../helpers/jwt.helper');
+const {userAuthorization} = require ("../middleware/authorization.middleware");
+const { setPasswordResetPin } = require('../models/reset-pin/Reset-pin.model');
+const { emailProcessor } = require('../helpers/email.helper');
 router.all('/',(req,res,next)=> {
     // res.json({message: 'Return from user router'})
     next()
 })
 
+//Get user profile router
+router.get('/',userAuthorization, async(req,res) => {
+    const _id = req.userID
+
+    const userProf = await getUserByID(_id)
+    res.json({user: userProf})
+})
 
 //Create New User Route
 router.post('/',async (req,res)=> {
@@ -53,8 +63,28 @@ router.post('/login',async(req,res)=> {
     const accessJWT = await createAccessJWT(user.email,`${user._id}`);
     const refreshJWT = await createRefreshJWT(user.email,`${user._id}`);
     console.log(result);
-
+    
     res.json({status:'success',message: 'successfully logged in',accessJWT,refreshJWT})
+})
+
+router.post('/reset-password', async(req,res) => {
+    const {email} = req.body;
+    const user = await getUserByEmail(email);
+    if (user && user._id){
+        const setPin = await setPasswordResetPin(email);
+        const result = await emailProcessor(email,setPin.pin)
+        if (result && result.messageId){
+            return res.json({
+                status:'success',
+                message: 'Check your email for Reset Pin'
+            })
+        }
+        return res.json({
+            status:'success',
+            message: 'Technical error! Try again later.'
+        })
+    }
+    res.json({status:'error', message: 'User does not exist'});
 })
 
 module.exports = router;
